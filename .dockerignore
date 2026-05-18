@@ -1,0 +1,22 @@
+.venv
+__pycache__/
+*.pyc
+.git
+.gitignore
+**/.DS_Store
+*.log
+
+# Build artefacts / tooling
+.ruff_cache
+.pytest_cache
+.mypy_cache
+.coverage
+coverage.xml
+
+# Editor junk
+.idea
+.vscode
+
+# Local secrets
+agents/mabool/api/conf/.env.secret
+

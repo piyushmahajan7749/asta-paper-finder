@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from dataclasses import dataclass
 from typing import (
     Any,
@@ -24,6 +25,12 @@ from langchain_core.language_models import BaseChatModel
 from langchain_core.outputs import LLMResult
 from langchain_core.runnables import Runnable
 from langchain_openai import ChatOpenAI
+
+try:
+    # langchain-openai supports Azure OpenAI via AzureChatOpenAI
+    from langchain_openai import AzureChatOpenAI  # type: ignore
+except Exception:  # pragma: no cover
+    AzureChatOpenAI = None  # type: ignore
 from pydantic import SecretStr
 from tenacity import (
     after_log,
@@ -138,7 +145,17 @@ def _create_chat_model(
     timeout: MaboolTimeout,
     api_key_mapper: Callable[[ModelFamily], SecretStr | None] | None = None,
 ) -> BaseChatModel:
-    """Create chat model instance, dispatching based on model family."""
+    """Create chat model instance, dispatching based on model family.
+
+    The `openai` family auto-routes to **AzureChatOpenAI** when the
+    `AZURE_OPENAI_ENDPOINT` / `AZURE_OPENAI_API_VERSION` /
+    `AZURE_OPENAI_DEPLOYMENT` env vars are all present. This is how
+    our Azure App Service deployment uses Azure OpenAI without
+    changing any `openai:*` model names in the rest of the codebase
+    - the dispatch happens here based purely on environment.
+    Falls back to vanilla `ChatOpenAI` when any required Azure var
+    is missing (local dev with the public OpenAI API still works).
+    """
     if api_key_mapper is None:
         api_key_mapper = lambda _: None
 
@@ -146,8 +163,40 @@ def _create_chat_model(
         params = model.to_api_params()
         if structured_response:
             params["model_kwargs"] = {"response_format": {"type": "json_object"}}
+
+        # Azure OpenAI auto-detection. Check the standard Azure SDK env
+        # var names first, then the older "OPENAI_*" variants some
+        # tools use. All three must be set + `AzureChatOpenAI` must be
+        # importable for us to take the Azure path.
+        azure_endpoint = os.getenv("AZURE_OPENAI_ENDPOINT") or os.getenv("AZURE_OPENAI_API_BASE")
+        azure_api_version = os.getenv("AZURE_OPENAI_API_VERSION") or os.getenv("OPENAI_API_VERSION")
+        azure_deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT") or os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME")
+        azure_api_key = os.getenv("AZURE_OPENAI_API_KEY")
+        resolved_api_key = api_key_mapper(model.family)
+
+        if azure_endpoint and azure_api_version and azure_deployment and AzureChatOpenAI is not None:
+            effective_key = SecretStr(azure_api_key) if azure_api_key else resolved_api_key
+
+            # Some Azure OpenAI deployments (notably reasoning-model
+            # deployments) only accept the default `temperature=1`. If
+            # the caller set `temperature=0.0/0.1` for structured
+            # extraction, Azure rejects with HTTP 400. Strip the
+            # override so the deployment's default is used instead.
+            azure_params = dict(params)
+            if azure_params.get("temperature") is not None and azure_params.get("temperature") != 1:
+                azure_params["temperature"] = None
+
+            return AzureChatOpenAI(  # type: ignore[call-arg]
+                api_key=effective_key,
+                azure_endpoint=azure_endpoint,
+                api_version=azure_api_version,
+                azure_deployment=azure_deployment,
+                timeout=timeout.httpx_timeout,
+                **azure_params,
+            )
+
         return ChatOpenAI(
-            api_key=api_key_mapper(model.family),
+            api_key=resolved_api_key,
             model=model.name,
             timeout=timeout.httpx_timeout,
             use_responses_api=True,

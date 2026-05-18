@@ -32,12 +32,17 @@ make sync-dev
 ```
 
 ### Running
+
 To run the agent, we launch a FastAPI server. Once the server is running, we can interact with it using cURL from the command line or through the Swagger web interface.
 
 ```bash
 cd agents/mabool/api
 make start-dev
 ```
+
+### Deploying to Azure
+
+The repo ships with a production-ready `Dockerfile`. Build/push the image to Azure Container Registry and host it with Azure App Service (Linux container). Full, copy-pasteable instructions live in [`docs/deployment/azure.md`](docs/deployment/azure.md).
 
 ### API
 
@@ -51,6 +56,7 @@ The `/api/2/rounds` POST API has the following arguments:
   "read_results_from_cache": false
 }
 ```
+
 - paper_description (REQUIRED): The natural language paper-search description.
 - operation_mode (default="infer"): should be one of "infer", "fast" or "diligent". Currently "infer" and "fast" behave the same way, and initiate a fast search (~30 seconds) whereas the "diligent" mode does a more exhaustive fetching (~3 minutes).
 - inserted_before (default=None): an upper-bound date in the format of YYYY-MM-DD to limit the results

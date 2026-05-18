@@ -81,6 +81,9 @@ lcov.info
 sqlAlchemy.log*
 vcr.log*
 server.log*
+# Azure App Service log dumps (from `az webapp log download` / portal)
+webapp_logs*
+agents/mabool/api/webapp_logs*
 
 # aider
 .aider*
