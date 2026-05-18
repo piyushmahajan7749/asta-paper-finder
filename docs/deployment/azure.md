@@ -22,8 +22,9 @@ This guide describes how to ship the FastAPI server (`/agents/mabool/api`) to Az
 ```bash
 cd /path/to/asta-paper-finder
 
-# Cross-build for Azure's amd64 runtime (works on both Intel and Apple Silicon Macs)
-docker buildx build --platform linux/amd64 -t paperfinder-api .
+# Cross-build + load into your LOCAL docker store so `docker run` can find it.
+# `--load` only works for single-platform builds, which is what we want here.
+docker buildx build --platform linux/amd64 --load -t paperfinder-api .
 
 # Smoke-test locally. On Apple Silicon this runs under Rosetta-style emulation
 # (slower than native), which is fine for the health check.
@@ -39,21 +40,33 @@ docker run --rm -p 8000:8000 \
 curl http://localhost:8000/health   # should return 204
 ```
 
+> **Why `--load`?** `docker buildx build` with the default `docker-container`
+> driver writes to its build cache, NOT your local docker image store. Without
+> `--load`, `docker images` won't list the built image and `docker tag` /
+> `docker run` won't find it. Use `--load` for local testing, `--push` for
+> registry uploads (see §2). You can't use both at once.
+
 ## 2. Push the image to Azure Container Registry (ACR)
+
+Easiest: build + push in one shot with `--push`. Skips the local docker store
+entirely, so you don't need `--load` and you don't need a separate
+`docker push`:
 
 ```bash
 # Create a registry (skip if you already have one)
 az acr create --name <acr-name> --resource-group <rg> --sku Basic
 
 az acr login --name <acr-name>
-docker tag paperfinder-api <acr-name>.azurecr.io/paperfinder-api:v1
-docker push <acr-name>.azurecr.io/paperfinder-api:v1
+
+docker buildx build \
+  --platform linux/amd64 \
+  --push \
+  -t <acr-name>.azurecr.io/paperfinder-api:v1 \
+  .
 ```
 
-> **Tip:** to bake the `--platform` flag into your build instead of remembering
-> it every time, you can run `docker buildx build --platform linux/amd64
-> --push -t <acr-name>.azurecr.io/paperfinder-api:v1 .` — buildx will build
-> AND push the amd64 image in one shot, skipping the separate `docker push`.
+If you already ran the `--load` build for local testing in §1, the layers are
+in the buildx cache so this is effectively just an upload — fast.
 
 ## 3. Provision the App Service
 
@@ -115,16 +128,20 @@ If you see `204`, the service is ready. Your frontend can now call `https://pape
 
 ## Updating the deployment
 
-1. Build a new image — **always with `--platform linux/amd64`** so the
-   image runs on App Service regardless of whether the build host is
+1. Build + push in one shot — **always with `--platform linux/amd64`** so
+   the image runs on App Service regardless of whether the build host is
    Intel or Apple Silicon:
 
    ```bash
-   docker buildx build --platform linux/amd64 -t paperfinder-api .
+   az acr login --name <acr>
+   docker buildx build \
+     --platform linux/amd64 \
+     --push \
+     -t <acr>.azurecr.io/paperfinder-api:v2 \
+     .
    ```
 
-2. Push with a new tag: `docker push <acr>.azurecr.io/paperfinder-api:v2`
-3. Point the Web App at the new tag:
+2. Point the Web App at the new tag:
 
    ```bash
    az webapp config container set \
@@ -133,7 +150,7 @@ If you see `204`, the service is ready. Your frontend can now call `https://pape
      --docker-custom-image-name <acr>.azurecr.io/paperfinder-api:v2
    ```
 
-4. Restart the app (`az webapp restart ...`) or let the config change trigger a restart automatically.
+3. Restart the app (`az webapp restart ...`) or let the config change trigger a restart automatically.
 
 That is all—no code changes are required when swapping tags, so this workflow fits easily into CI/CD.
 
