@@ -54,6 +54,17 @@ from ai2i.dcollection.sampling import sample
 logger = logging.getLogger(__name__)
 
 
+async def _empty_loader_result() -> Sequence[Document]:
+    """Awaitable placeholder returning an empty list.
+
+    Used by `load_many` when every entity in the input batch already
+    has the target fields loaded - we still need to put SOMETHING into
+    the `loading_tasks` list so the `fields_groups` zip lines up by
+    index, but there's no actual work to do.
+    """
+    return []
+
+
 class PaperFinderDocumentCollection(DocumentCollection):
     def __repr__(self) -> str:
         return (
@@ -103,9 +114,44 @@ class PaperFinderDocumentCollection(DocumentCollection):
             fields_groups.append(fields_to_load)
             required_fields: list[DocumentFieldName] = [rf for f in fields_to_load for rf in f.required_fields]
             entities_with_loaded_requirements = await self.load_many(entities, required_fields)
+
+            # Pre-filter: skip entities that already have ALL of this
+            # loader's target fields loaded. Without this guard, the
+            # load chain wipes pre-populated field values for docs
+            # sourced outside the S2 pipeline (e.g. OpenAlex):
+            #
+            #   1. `clone_partial(required_fields)` creates a clone
+            #      that carries corpus_id + only the loader's
+            #      required_fields (so title is None on the clone).
+            #   2. The cache wrapper (`cache.fetch_async_data` /
+            #      `_apply_all_values`) returns ALL input clones
+            #      back to the caller, even when the underlying
+            #      loader returned nothing for them.
+            #   3. The for-loop below treats those clones as "loaded
+            #      results" and `assign_loaded_values` copies the
+            #      clone's empty title onto the original entity in
+            #      `entities_by_id` - overwriting the real title we
+            #      set at fetch time.
+            #
+            # By filtering out entities that don't need any of this
+            # loader's fields, we never enter the load chain for them
+            # and their pre-populated values stay intact.
+            loader_field_names = [f.field for f in fields_to_load]
+            entities_needing_this_loader = [
+                e
+                for e in entities_with_loaded_requirements
+                if any(not e.is_loaded(field_name) for field_name in loader_field_names)
+            ]
+            if not entities_needing_this_loader:
+                # Append a placeholder empty result so the
+                # `loaded_entities_results_for_fields` zip below
+                # still aligns with `fields_groups`.
+                loading_tasks.append(_empty_loader_result())
+                continue
+
             entities_limited_to_loaded_requirements = cast(
                 list[DynamicallyLoadedEntity[DocumentFieldName]],
-                [e.clone_partial(required_fields) for e in entities_with_loaded_requirements],
+                [e.clone_partial(required_fields) for e in entities_needing_this_loader],
             )
 
             cache = self.factory.cache()
