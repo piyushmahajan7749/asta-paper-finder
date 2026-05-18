@@ -66,7 +66,18 @@ decay_factor = 0.95
 batch_growth_factor = 2
 plot = false
 optimal_solution = false
-keep_irrelevant_docs = false
+# Flipped to true 2026-05-18: PaperFinder's LLM relevance judgement
+# is too strict for our deployment. With strict mode (=false), broad
+# lexical matches from OpenAlex (no snippets to enrich the LLM
+# context) routinely all get judged below threshold-1 and the final
+# doc_collection becomes empty - users see "I didn't find papers
+# matching your query" even when OpenAlex returned 25 reasonable
+# candidates. Flipping this to true lowers the keep-threshold to 0
+# so any doc that received ANY relevance score (including 0) passes
+# through. Downstream callers (chatbot-ui lit-scout) do their own
+# LLM relevance pass anyway, so they're happy to get the broader
+# candidate set + judge it themselves.
+keep_irrelevant_docs = true
 
 [default.query_analyzer_agent]
 llm_abstraction_model_name = "openai:gpt5mini-medium-reasoning-default"

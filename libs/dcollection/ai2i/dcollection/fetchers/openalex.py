@@ -177,6 +177,15 @@ def _doc_from_openalex_work(
     # passed to __init__ are auto-marked as loaded, so the from_s2
     # dynamic-field loaders won't fire on this doc (they would 4xx
     # anyway given the synthetic corpus_id).
+    #
+    # `snippets` and `citation_contexts` are explicitly set to `[]`
+    # (not None) so the dynamic-field loader chain sees them as
+    # "already loaded with the empty case" rather than "needs
+    # loading". The `markdown` computed field declares both as
+    # required, and the `load_markdown` body iterates them with
+    # `if doc.snippets / if doc.citation_contexts` - empty lists are
+    # falsy in those guards, so the markdown still renders cleanly
+    # without snippet/citation sections.
     return PaperFinderDocument(
         corpus_id=corpus_id,
         url=url,
@@ -190,7 +199,8 @@ def _doc_from_openalex_work(
         citation_count=cited_by_count,
         journal=journal,
         publication_date=publication_date,
-        snippets=None,
+        snippets=[],
+        citation_contexts=[],
         origins=[origin],
     )
 
