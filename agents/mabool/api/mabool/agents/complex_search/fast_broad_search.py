@@ -101,6 +101,25 @@ async def _run_initial_retrieval(
             fields_of_study=fields_of_study,
         )
     ]
+
+    # OpenAlex arm - keyless, free, broad cross-disciplinary coverage. Added
+    # 2026-05-18 after the S2 key expiry incident showed how fragile the
+    # all-S2 retrieval design was: when S2 was down, both dense (snippet
+    # search) and from_s2_search failed simultaneously, so the agent had
+    # nothing to return. OpenAlex doesn't share an auth surface with S2,
+    # so it survives S2 outages by construction. Gated by config so an
+    # operator can disable it if OpenAlex itself ever has problems.
+    if config_value(cfg_schema.openalex.enabled, default=True):
+        retrieval_futures += [
+            DC.from_openalex_search(
+                query=content_query,
+                limit=config_value(cfg_schema.openalex.fast_broad_search_top_k, default=25),
+                search_iteration=1,
+                time_range=time_range,
+                fields_of_study=fields_of_study,
+            )
+        ]
+
     doc_collections_or_errors = await custom_gather(*retrieval_futures, return_exceptions=True)
     for dc_or_e in doc_collections_or_errors:
         if isinstance(dc_or_e, Exception):
@@ -108,8 +127,8 @@ async def _run_initial_retrieval(
 
     doc_collection = DC.merge(dc for dc in doc_collections_or_errors if not isinstance(dc, BaseException))
     if not doc_collection:
-        logger.error("No documents retrieved from dense and s2 search")
-        raise Exception("No documents retrieved from dense and s2 search")
+        logger.error("No documents retrieved from dense, s2, and OpenAlex search")
+        raise Exception("No documents retrieved from dense, s2, and OpenAlex search")
 
     doc_collection += await run_snippet_snowball(
         content_query,

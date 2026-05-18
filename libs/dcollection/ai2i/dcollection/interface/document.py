@@ -319,6 +319,11 @@ class OriginQuery(BaseModel):
         "s2_citing_papers",
         "snowball",
         "llm",
+        # OpenAlex `/works` keyword search. Fully metadata-only (no
+        # snippets). Used as a fallback + diversity source when the S2
+        # arms are degraded or for queries where OpenAlex's broader
+        # cross-disciplinary coverage helps.
+        "openalex_search",
     ]
     provider: str | None = None
     dataset: str | None = None

@@ -204,6 +204,23 @@ class S2Api:
 
 
 @dataclass(frozen=True)
+class OpenAlexApi:
+    # Polite-pool opt-in. Without this set, requests still work but land in
+    # the heavily-rate-limited common pool. Set OPENALEX_MAILTO env var
+    # (or `openalex.mailto` in config.toml) to your contact email.
+    # See https://docs.openalex.org/how-to-use-the-api/api-overview
+    mailto: ConfigValuePlaceholder[str | None] = ConfigValuePlaceholder(["openalex", "mailto"])
+    timeout: ConfigValuePlaceholder[int] = ConfigValuePlaceholder(["openalex", "timeout"])
+    # Top-K per query for the broad-search arm. Capped at 50 client-side.
+    fast_broad_search_top_k: ConfigValuePlaceholder[int] = ConfigValuePlaceholder(
+        ["openalex", "fast_broad_search_top_k"]
+    )
+    # If false, the OpenAlex arm is skipped entirely in _run_initial_retrieval.
+    # Useful escape hatch if OpenAlex ever has its own outage.
+    enabled: ConfigValuePlaceholder[bool] = ConfigValuePlaceholder(["openalex", "enabled"])
+
+
+@dataclass(frozen=True)
 class SnowballAgent:
     forward_top_k: ConfigValuePlaceholder[int] = ConfigValuePlaceholder(["snowball_agent", "forward_top_k"])
     backward_top_k: ConfigValuePlaceholder[int] = ConfigValuePlaceholder(["snowball_agent", "backward_top_k"])
@@ -229,6 +246,7 @@ class AppConfigSchema:
     fast_broad_search_agent: FastBroadSearchAgent = FastBroadSearchAgent()
     snowball_agent: SnowballAgent = SnowballAgent()
     s2_api: S2Api = S2Api()
+    openalex: OpenAlexApi = OpenAlexApi()
     cohere: Cohere = Cohere()
     cache: Cache = Cache()
     di: Di = Di()

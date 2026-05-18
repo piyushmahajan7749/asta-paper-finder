@@ -8,6 +8,7 @@ from pydantic.fields import FieldInfo
 from semanticscholar import AsyncSemanticScholar
 
 from ai2i.dcollection.external_api.dense.vespa import VespaRetriever
+from ai2i.dcollection.external_api.openalex import AsyncOpenAlexClient
 from ai2i.dcollection.interface.document import DocumentFieldName
 
 type EntityId = str
@@ -159,4 +160,8 @@ class DocumentCollectionContext(BaseModel):
     s2_max_concurrency: int = Field(default=10)
     cache: SubsetCacheInterface = Field()
     vespa_client: VespaRetriever = Field()
+    # OpenAlex is an additional broad-coverage arm. Optional - falls
+    # back to None when no mailto config is present so existing
+    # deployments that haven't enabled OpenAlex keep working unchanged.
+    openalex_client: AsyncOpenAlexClient | None = Field(default=None)
     force_deterministic: bool = Field(default=False)

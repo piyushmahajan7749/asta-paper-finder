@@ -111,6 +111,25 @@ class DC:
 
     @staticmethod
     @DI.managed
+    async def from_openalex_search(
+        query: str,
+        limit: int,
+        search_iteration: int = 1,
+        time_range: ExtractedYearlyTimeRange | None = None,
+        fields_of_study: list[str] | None = None,
+        dcf: DocumentCollectionFactory = DI.requires(dc_deps.round_doc_collection_factory),
+    ) -> DocumentCollection:
+        """Run an OpenAlex `/works` search and wrap results in a DocumentCollection."""
+        return await dcf.from_openalex_search(
+            query=query,
+            limit=limit,
+            search_iteration=search_iteration,
+            time_range=time_range,
+            fields_of_study=fields_of_study,
+        )
+
+    @staticmethod
+    @DI.managed
     async def from_dense_retrieval(
         queries: list[str],
         search_iteration: int,

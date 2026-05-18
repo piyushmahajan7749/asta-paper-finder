@@ -32,6 +32,18 @@ def _describe_s2_key_state(s2_api_key: str | None) -> str:
     return f"PRESENT (length={len(stripped)}, fingerprint={fingerprint})"
 
 
+def _describe_openalex_mailto(mailto: str | None) -> str:
+    """Same shape as the S2 describer: never log the full address."""
+    if not mailto:
+        return "MISSING (OpenAlex will use the common pool with aggressive rate limits)"
+    stripped = mailto.strip()
+    if not stripped or "@" not in stripped:
+        return "INVALID (must be a contact email)"
+    local, domain = stripped.split("@", 1)
+    initial = local[0] if local else "?"
+    return f"PRESENT ({initial}***@{domain})"
+
+
 @dc_module.provides(scope="singleton")
 async def round_doc_collection_factory(
     s2_api_key: str = DI.config(cfg_schema.s2_api_key),
@@ -39,14 +51,19 @@ async def round_doc_collection_factory(
     cache_ttl: int = DI.config(cfg_schema.cache.ttl),
     cache_is_enabled: bool = DI.config(cfg_schema.cache.enabled),
     force_deterministic: bool = DI.config(cfg_schema.force_deterministic),
+    openalex_mailto: str | None = DI.config(cfg_schema.openalex.mailto, default=None),
+    openalex_timeout: int = DI.config(cfg_schema.openalex.timeout, default=15),
 ) -> DocumentCollectionFactory:
     logger.info(f"[dc_deps] Building round DocumentCollectionFactory; S2_API_KEY: {_describe_s2_key_state(s2_api_key)}")
+    logger.info(f"[dc_deps] OpenAlex mailto: {_describe_openalex_mailto(openalex_mailto)}")
     dc_factory = DocumentCollectionFactory(
         s2_api_key=s2_api_key,
         s2_api_timeout=s2_api_timeout,
         cache_ttl=cache_ttl,
         cache_is_enabled=cache_is_enabled,
         force_deterministic=force_deterministic,
+        openalex_mailto=openalex_mailto,
+        openalex_timeout=openalex_timeout,
     )
     return dc_factory
 
@@ -58,6 +75,8 @@ def detached_doc_collection_factory(
     cache_ttl: int = ConfigValue(cfg_schema.cache.ttl),
     cache_is_enabled: bool = ConfigValue(cfg_schema.cache.enabled),
     force_deterministic: bool = ConfigValue(cfg_schema.force_deterministic),
+    openalex_mailto: str | None = ConfigValue(cfg_schema.openalex.mailto, default=None),
+    openalex_timeout: int = ConfigValue(cfg_schema.openalex.timeout, default=15),
 ) -> DocumentCollectionFactory:
     dc_factory = DocumentCollectionFactory(
         s2_api_key=s2_api_key,
@@ -65,6 +84,8 @@ def detached_doc_collection_factory(
         cache_ttl=cache_ttl,
         cache_is_enabled=cache_is_enabled,
         force_deterministic=force_deterministic,
+        openalex_mailto=openalex_mailto,
+        openalex_timeout=openalex_timeout,
     )
     return dc_factory
 

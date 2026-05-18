@@ -10,11 +10,19 @@ from .computed_field import (  # noqa: F401
     Typed,
 )
 from .document import PaperFinderDocument  # noqa: F401
+from .external_api.openalex import (  # noqa: F401
+    AsyncOpenAlexClient,
+    reconstruct_abstract_from_inverted_index,
+)
 from .external_api.s2.author import s2_get_authors_by_name  # noqa: F401
 from .factory import DocumentCollectionFactory  # noqa: F401
 from .fetchers.dense import (  # noqa: F401
     DenseDataset,
     fetch_from_vespa_dense_retrieval,
+)
+from .fetchers.openalex import (  # noqa: F401
+    OPENALEX_CORPUS_ID_PREFIX,
+    fetch_from_openalex_search,
 )
 from .fetchers.s2 import (  # noqa: F401
     get_by_title_origin_query,

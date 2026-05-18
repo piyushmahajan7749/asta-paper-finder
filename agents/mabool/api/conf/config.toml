@@ -4,6 +4,12 @@ log_format = ""
 log_max_length = 1048576
 snowball_agent = { forward_top_k = 200, backward_top_k = 200, snippet_top_k = 200 }
 s2_api = { concurrency = 10, timeout = 20, total_papers_limit = 1000, total_citations_limit = 1000, retry_attempts = 5, max_seconds_to_wait = 30.0 }
+# OpenAlex retrieval arm. `mailto` is optional but strongly recommended -
+# it opts the service into the OpenAlex "polite pool" (higher rate limits
+# + priority). Override via env: OPENALEX_MAILTO=ops@yourdomain.com.
+# Set `enabled = false` to disable the OpenAlex arm entirely if it
+# misbehaves.
+openalex = { mailto = "", timeout = 15, fast_broad_search_top_k = 25, enabled = true }
 response_text_top_k = 10
 run_snowball_for_recent = true
 run_snowball_for_central = true

@@ -46,6 +46,23 @@ async def from_s2(
 ) -> Sequence[Document]:
     from ai2i.dcollection.collection import keyed_by_corpus_id
 
+    # Skip entities whose corpus_id isn't an S2 numeric id (e.g. ones
+    # sourced from OpenAlex carry `oa:Wxxxxxxx` style IDs). They get
+    # their fields pre-populated at fetch time and don't need S2
+    # enrichment - this guard makes the from_s2 loader a graceful
+    # no-op for them instead of throwing on `int(corpus_id)`.
+    def _has_s2_corpus_id(entity: Document) -> bool:
+        cid = getattr(entity, "corpus_id", None)
+        return isinstance(cid, str) and cid.isdigit()
+
+    s2_entities = [e for e in entities if _has_s2_corpus_id(e)]
+    non_s2_entities = [e for e in entities if not _has_s2_corpus_id(e)]
+    if non_s2_entities:
+        logger.debug(
+            f"[from_s2] Skipping S2 enrichment for {len(non_s2_entities)} non-S2 doc(s); "
+            f"proceeding with {len(s2_entities)} S2 doc(s)."
+        )
+
     @with_batch(
         batch_size=DEFAULT_BATCH_SIZE,
         max_concurrency=context.s2_max_concurrency,
@@ -72,7 +89,12 @@ async def from_s2(
         )
         return docs
 
-    return list(await _batched_from_s2(entities, fields))
+    enriched_s2 = list(await _batched_from_s2(s2_entities, fields)) if s2_entities else []
+    # Re-merge so callers get the same number of entities back in a
+    # stable order (S2-enriched ones first, then the un-touched
+    # non-S2 ones). The downstream merge/fuse layer dedupes by
+    # corpus_id so duplicates can't sneak in here.
+    return [*enriched_s2, *non_s2_entities]
 
 
 def _document_fields_to_s2_fields(

@@ -11,7 +11,9 @@ from ai2i.dcollection.caching.cache import SubsetCache
 from ai2i.dcollection.collection import PaperFinderDocumentCollection
 from ai2i.dcollection.data_access_context import DocumentCollectionContext, SubsetCacheInterface
 from ai2i.dcollection.external_api.dense.vespa import VespaRetriever
+from ai2i.dcollection.external_api.openalex import AsyncOpenAlexClient
 from ai2i.dcollection.fetchers.dense import DenseDataset, fetch_from_vespa_dense_retrieval
+from ai2i.dcollection.fetchers.openalex import fetch_from_openalex_search
 from ai2i.dcollection.fetchers.s2 import (
     s2_by_author,
     s2_fetch_citing_papers,
@@ -43,6 +45,8 @@ class DocumentCollectionFactory(BaseDocumentCollectionFactory):
         cache_ttl: int = 600,
         cache_is_enabled: bool = True,
         force_deterministic: bool = False,
+        openalex_mailto: str | None = None,
+        openalex_timeout: int = 15,
     ):
         super().__init__()
         # Fail loud when the S2 API key is missing or blank. The
@@ -75,6 +79,16 @@ class DocumentCollectionFactory(BaseDocumentCollectionFactory):
             s2_client=s2_client,
             timeout=s2_api_timeout,
         )
+        # OpenAlex client is always constructed - if `openalex_mailto`
+        # is missing the client falls back to the common pool (with a
+        # boot-time warning). That keeps the OpenAlex retrieval arm
+        # functional out of the box; an operator can opt into the
+        # polite pool later just by setting the env var, no code
+        # change needed.
+        openalex_client = AsyncOpenAlexClient(
+            mailto=openalex_mailto,
+            timeout=openalex_timeout,
+        )
         cache = SubsetCache(
             ttl=cache_ttl,
             is_enabled=cache_is_enabled,
@@ -83,6 +97,7 @@ class DocumentCollectionFactory(BaseDocumentCollectionFactory):
         self._context = DocumentCollectionContext(
             s2_client=s2_client,
             vespa_client=vespa_client,
+            openalex_client=openalex_client,
             cache=cache,
             force_deterministic=force_deterministic,
         )
@@ -252,3 +267,33 @@ class DocumentCollectionFactory(BaseDocumentCollectionFactory):
         except Exception as e:
             logging.exception(f"Failed to populate cache for dense retrieval documents (skipping): {e}")
         return collection
+
+    async def from_openalex_search(
+        self,
+        query: str,
+        limit: int,
+        search_iteration: int = 1,
+        time_range: ExtractedYearlyTimeRange | None = None,
+        fields_of_study: list[str] | None = None,
+    ) -> DocumentCollection:
+        """Create a document collection from an OpenAlex `/works` search.
+
+        OpenAlex docs are pre-populated with all standard fields (title,
+        abstract, authors, etc.) at fetch time, so the dynamic-field
+        loaders skip them. We deliberately don't call `with_fields`
+        afterwards because OpenAlex corpus_ids are synthetic (`oa:Wxxx`)
+        and would just no-op through the `from_s2` enrichment path.
+
+        The cache is also skipped for the same reason - the cache layer
+        keys on corpus_id assuming it round-trips to S2, which doesn't
+        apply here.
+        """
+        documents = await fetch_from_openalex_search(
+            queries=[query],
+            search_iteration=search_iteration,
+            top_k=limit,
+            context=self._context,
+            time_range=time_range,
+            fields_of_study=fields_of_study,
+        )
+        return self.from_docs(documents=documents)
