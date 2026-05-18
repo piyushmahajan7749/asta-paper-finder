@@ -49,19 +49,42 @@ async def from_s2(
     # Skip entities whose corpus_id isn't an S2 numeric id (e.g. ones
     # sourced from OpenAlex carry `oa:Wxxxxxxx` style IDs). They get
     # their fields pre-populated at fetch time and don't need S2
-    # enrichment - this guard makes the from_s2 loader a graceful
-    # no-op for them instead of throwing on `int(corpus_id)`.
+    # enrichment.
+    #
+    # Critical: we must NOT return the non-S2 entities from this loader.
+    # `collection.load_many` (the caller) passes the loader CLONED
+    # entities via `clone_partial(required_fields)` - those clones
+    # only carry corpus_id + the loader's strict required_fields, so
+    # their title/abstract/etc. are empty. After the loader returns,
+    # `assign_loaded_values` iterates the returned entities and
+    # `setattr`s their field values back onto the originals in the
+    # collection. So if we return the cloned non-S2 entities, the
+    # originals' pre-populated title/abstract/url get OVERWRITTEN
+    # with the clone's empty values - exactly the bug seen 2026-05-19
+    # where OpenAlex docs round-tripped through the response with
+    # title=None, abstract=None, etc. even though the fetcher set
+    # them at construction time.
+    #
+    # By returning only the S2-enriched entities, the load_many
+    # assign_loaded_values loop simply doesn't iterate over non-S2
+    # ones, so their fields stay untouched on the originals.
     def _has_s2_corpus_id(entity: Document) -> bool:
         cid = getattr(entity, "corpus_id", None)
         return isinstance(cid, str) and cid.isdigit()
 
     s2_entities = [e for e in entities if _has_s2_corpus_id(e)]
-    non_s2_entities = [e for e in entities if not _has_s2_corpus_id(e)]
-    if non_s2_entities:
+    non_s2_count = len(entities) - len(s2_entities)
+    if non_s2_count > 0:
         logger.debug(
-            f"[from_s2] Skipping S2 enrichment for {len(non_s2_entities)} non-S2 doc(s); "
+            f"[from_s2] Skipping S2 enrichment for {non_s2_count} non-S2 doc(s); "
             f"proceeding with {len(s2_entities)} S2 doc(s)."
         )
+
+    if not s2_entities:
+        # All entities were non-S2 - return empty list so the caller's
+        # assign_loaded_values loop is a no-op (preserving the
+        # pre-populated values on the originals in the collection).
+        return []
 
     @with_batch(
         batch_size=DEFAULT_BATCH_SIZE,
@@ -89,12 +112,7 @@ async def from_s2(
         )
         return docs
 
-    enriched_s2 = list(await _batched_from_s2(s2_entities, fields)) if s2_entities else []
-    # Re-merge so callers get the same number of entities back in a
-    # stable order (S2-enriched ones first, then the un-touched
-    # non-S2 ones). The downstream merge/fuse layer dedupes by
-    # corpus_id so duplicates can't sneak in here.
-    return [*enriched_s2, *non_s2_entities]
+    return list(await _batched_from_s2(s2_entities, fields))
 
 
 def _document_fields_to_s2_fields(
