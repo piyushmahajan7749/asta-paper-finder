@@ -92,7 +92,7 @@ class AsyncOpenAlexClient:
         per_page: int = 25,
         time_range_start: int | None = None,
         time_range_end: int | None = None,
-        fields_of_study: Sequence[str] | None = None,
+        fields_of_study: Sequence[str] | None = None,  # currently unused, see note below
         fields: Sequence[str] = DEFAULT_WORK_FIELDS,
     ) -> list[dict[str, Any]]:
         """Search OpenAlex works by keyword.
@@ -126,15 +126,20 @@ class AsyncOpenAlexClient:
             filters.append(f"from_publication_date:{time_range_start}-01-01")
         elif time_range_end:
             filters.append(f"to_publication_date:{time_range_end}-12-31")
-        if fields_of_study:
-            # OpenAlex maps fields-of-study via `concepts.id` filters.
-            # We don't have stable concept IDs from upstream callers,
-            # so pass them as `concepts.display_name.search:` which
-            # matches by name. Best-effort - extra signal, not a hard
-            # filter.
-            for fos in fields_of_study:
-                if fos:
-                    filters.append(f"concepts.display_name.search:{fos}")
+        # Note on `fields_of_study`: we intentionally do NOT translate it
+        # into an OpenAlex filter right now. OpenAlex only accepts
+        # `concepts.id:<C-id>` filters (e.g. `C86803240` for
+        # Pharmaceutical Sciences); the `concepts.display_name.search:<name>`
+        # syntax that an earlier version of this code emitted returns
+        # HTTP 400 "Invalid query parameters error" - confirmed against
+        # the live API on 2026-05-18, and was what was breaking the
+        # OpenAlex arm in v8. Since upstream callers pass us domain
+        # *names* not concept IDs, supporting this filter would require
+        # an extra name→ID lookup step that isn't worth it: the main
+        # `search=` param already does relevance ranking inside the
+        # right concept space implicitly. If we ever want hard concept
+        # filtering, add a name→ID translator and switch to the
+        # `concepts.id:` form here.
         if filters:
             params["filter"] = ",".join(filters)
 
