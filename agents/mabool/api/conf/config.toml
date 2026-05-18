@@ -3,7 +3,15 @@ env = "dev"
 log_format = ""
 log_max_length = 1048576
 snowball_agent = { forward_top_k = 200, backward_top_k = 200, snippet_top_k = 200 }
-s2_api = { concurrency = 10, timeout = 20, total_papers_limit = 1000, total_citations_limit = 1000, retry_attempts = 5, max_seconds_to_wait = 30.0 }
+# concurrency=1 is mandatory: the Semantic Scholar free-tier key
+# (granted 2026-05-19) enforces a **1 request / second CUMULATIVE**
+# rate limit across ALL endpoints (paper search + snippet search
+# both count against the same budget). Going above 1 here causes
+# almost-immediate 429s that burn the retry budget. The s2_retry
+# wrapper + retry_attempts=5 + max_seconds_to_wait=30 still handle
+# the occasional 429 from unlucky timing slips. Bump back to 10
+# only after upgrading to a paid S2 plan with a higher quota.
+s2_api = { concurrency = 1, timeout = 20, total_papers_limit = 1000, total_citations_limit = 1000, retry_attempts = 5, max_seconds_to_wait = 30.0 }
 # OpenAlex retrieval arm. `mailto` is optional but strongly recommended -
 # it opts the service into the OpenAlex "polite pool" (higher rate limits
 # + priority). Override via env: OPENALEX_MAILTO=ops@yourdomain.com.
@@ -38,7 +46,11 @@ n = 1
 batch_max_concurrency = 1
 
 [default.vespa]
-concurrency = 10
+# concurrency=1 — see the long comment on `s2_api.concurrency` above.
+# `VespaRetriever` actually calls Semantic Scholar's snippet-search
+# endpoint (despite the name), so it shares the same 1 req/sec
+# cumulative S2 budget.
+concurrency = 1
 timeout = 60
 
 [default.dense_agent]

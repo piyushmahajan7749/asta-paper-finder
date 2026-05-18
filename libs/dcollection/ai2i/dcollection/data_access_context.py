@@ -157,9 +157,18 @@ class DocumentCollectionContext(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     s2_client: AsyncSemanticScholar = Field()
+    # NOTE: `s2_max_concurrency` and `vespa_max_concurrency` both hit
+    # the Semantic Scholar host, which currently enforces a **1
+    # request per second CUMULATIVE** rate limit across all endpoints
+    # (paper search + snippet search both count against the same
+    # budget). So in practice both should be set to 1 in production
+    # config, and the s2_retry tenacity wrapper handles any 429s from
+    # the unlucky timing slips. Defaults stay at 10 for back-compat
+    # with callers that don't pass them.
     s2_max_concurrency: int = Field(default=10)
     cache: SubsetCacheInterface = Field()
     vespa_client: VespaRetriever = Field()
+    vespa_max_concurrency: int = Field(default=10)
     # OpenAlex is an additional broad-coverage arm. Optional - falls
     # back to None when no mailto config is present so existing
     # deployments that haven't enabled OpenAlex keep working unchanged.

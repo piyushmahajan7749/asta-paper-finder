@@ -42,6 +42,8 @@ class DocumentCollectionFactory(BaseDocumentCollectionFactory):
         /,
         s2_api_key: str | None = None,
         s2_api_timeout: int = 60,
+        s2_max_concurrency: int = 10,
+        vespa_max_concurrency: int = 10,
         cache_ttl: int = 600,
         cache_is_enabled: bool = True,
         force_deterministic: bool = False,
@@ -96,7 +98,9 @@ class DocumentCollectionFactory(BaseDocumentCollectionFactory):
         )
         self._context = DocumentCollectionContext(
             s2_client=s2_client,
+            s2_max_concurrency=s2_max_concurrency,
             vespa_client=vespa_client,
+            vespa_max_concurrency=vespa_max_concurrency,
             openalex_client=openalex_client,
             cache=cache,
             force_deterministic=force_deterministic,
@@ -256,6 +260,10 @@ class DocumentCollectionFactory(BaseDocumentCollectionFactory):
                     authors=authors,
                     corpus_ids=corpus_ids,
                     fields_of_study=fields_of_study,
+                    # Honor the config-level vespa concurrency cap. Without
+                    # this we'd fall back to the function default (10) and
+                    # blow past the S2 1 req/sec cumulative rate limit.
+                    vespa_concurrency=self._context.vespa_max_concurrency,
                     context=self._context,
                     inserted_before=inserted_before,
                 )

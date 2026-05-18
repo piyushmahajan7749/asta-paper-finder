@@ -48,6 +48,8 @@ def _describe_openalex_mailto(mailto: str | None) -> str:
 async def round_doc_collection_factory(
     s2_api_key: str = DI.config(cfg_schema.s2_api_key),
     s2_api_timeout: int = DI.config(cfg_schema.s2_api.timeout),
+    s2_max_concurrency: int = DI.config(cfg_schema.s2_api.concurrency),
+    vespa_max_concurrency: int = DI.config(cfg_schema.vespa.concurrency),
     cache_ttl: int = DI.config(cfg_schema.cache.ttl),
     cache_is_enabled: bool = DI.config(cfg_schema.cache.enabled),
     force_deterministic: bool = DI.config(cfg_schema.force_deterministic),
@@ -55,10 +57,16 @@ async def round_doc_collection_factory(
     openalex_timeout: int = DI.config(cfg_schema.openalex.timeout, default=15),
 ) -> DocumentCollectionFactory:
     logger.info(f"[dc_deps] Building round DocumentCollectionFactory; S2_API_KEY: {_describe_s2_key_state(s2_api_key)}")
+    logger.info(
+        f"[dc_deps] S2 concurrency caps: s2_api={s2_max_concurrency}, vespa={vespa_max_concurrency} "
+        f"(should both be 1 for the 1 req/s cumulative S2 rate limit)"
+    )
     logger.info(f"[dc_deps] OpenAlex mailto: {_describe_openalex_mailto(openalex_mailto)}")
     dc_factory = DocumentCollectionFactory(
         s2_api_key=s2_api_key,
         s2_api_timeout=s2_api_timeout,
+        s2_max_concurrency=s2_max_concurrency,
+        vespa_max_concurrency=vespa_max_concurrency,
         cache_ttl=cache_ttl,
         cache_is_enabled=cache_is_enabled,
         force_deterministic=force_deterministic,
@@ -72,6 +80,8 @@ async def round_doc_collection_factory(
 def detached_doc_collection_factory(
     s2_api_key: str = ConfigValue(cfg_schema.s2_api_key),
     s2_api_timeout: int = ConfigValue(cfg_schema.s2_api.timeout),
+    s2_max_concurrency: int = ConfigValue(cfg_schema.s2_api.concurrency),
+    vespa_max_concurrency: int = ConfigValue(cfg_schema.vespa.concurrency),
     cache_ttl: int = ConfigValue(cfg_schema.cache.ttl),
     cache_is_enabled: bool = ConfigValue(cfg_schema.cache.enabled),
     force_deterministic: bool = ConfigValue(cfg_schema.force_deterministic),
@@ -81,6 +91,8 @@ def detached_doc_collection_factory(
     dc_factory = DocumentCollectionFactory(
         s2_api_key=s2_api_key,
         s2_api_timeout=s2_api_timeout,
+        s2_max_concurrency=s2_max_concurrency,
+        vespa_max_concurrency=vespa_max_concurrency,
         cache_ttl=cache_ttl,
         cache_is_enabled=cache_is_enabled,
         force_deterministic=force_deterministic,
