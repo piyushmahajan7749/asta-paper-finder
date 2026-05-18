@@ -45,10 +45,31 @@ class DocumentCollectionFactory(BaseDocumentCollectionFactory):
         force_deterministic: bool = False,
     ):
         super().__init__()
+        # Fail loud when the S2 API key is missing or blank. The
+        # downstream `snippet/search` endpoint (called by VespaRetriever)
+        # returns 403 Forbidden without a valid key, which used to
+        # bubble up to the agent layer as a generic "BroadSearchAgent
+        # failed to respond" message and was easy to misdiagnose as a
+        # Vespa/AWS issue. Logging here is the only signal an operator
+        # gets at boot time; the client is still built (no key) so
+        # local dev with a free tier keeps working, but every dense
+        # retrieval will throw a clearer error from _validate_response.
+        normalized_s2_key = s2_api_key.strip() if isinstance(s2_api_key, str) else None
+        if not normalized_s2_key:
+            logger.error(
+                "S2_API_KEY is missing or empty. PaperFinder will fall back to "
+                "the Semantic Scholar free tier, which does NOT include the "
+                "snippet-search endpoint - expect 403 Forbidden on every dense "
+                "retrieval. Set the S2_API_KEY application setting (Azure App "
+                "Service → Configuration → Application settings) or .env.secret "
+                "to a valid key from "
+                "https://www.semanticscholar.org/product/api#api-key and "
+                "restart the service."
+            )
         s2_client = (
-            AsyncSemanticScholar(timeout=s2_api_timeout, api_key=s2_api_key)
-            if s2_api_key
-            else AsyncSemanticScholar(timeout=s2_api_timeout)  # TODO: do we want to allow / warn in this case?
+            AsyncSemanticScholar(timeout=s2_api_timeout, api_key=normalized_s2_key)
+            if normalized_s2_key
+            else AsyncSemanticScholar(timeout=s2_api_timeout)
         )
         vespa_client = VespaRetriever(
             s2_client=s2_client,

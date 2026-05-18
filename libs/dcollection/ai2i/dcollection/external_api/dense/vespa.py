@@ -206,6 +206,23 @@ class VespaRetriever(BaseRetriever):
     def _validate_response(response: Response) -> dict:
         if response.status_code == 429:
             raise ExceedQuotaError()
+        if response.status_code in (401, 403):
+            # Auth failures hit us via the Semantic Scholar `snippet/search`
+            # endpoint (which `VespaRetriever` actually calls despite its
+            # name). Wrap with an explicit hint so the next reader of the
+            # log doesn't waste hours assuming Vespa-the-Yahoo-product is
+            # down. Observed at 2026-05-18 when `S2_API_KEY` was missing
+            # from the Azure App Service application settings.
+            text = response.text
+            raise Exception(
+                f"Semantic Scholar API rejected the request with HTTP "
+                f"{response.status_code}: {text}. The S2_API_KEY env var "
+                f"is most likely missing, invalid, or revoked. Check Azure "
+                f"App Service → Configuration → Application settings and "
+                f"verify the key against "
+                f"https://api.semanticscholar.org/graph/v1/paper/search?query=test "
+                f"with header 'x-api-key: <KEY>'."
+            )
         if 400 <= response.status_code < 500:
             text = response.text
             raise Exception(f"Request failed with status code {response.status_code}: {text}")
