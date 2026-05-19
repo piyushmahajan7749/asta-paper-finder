@@ -25,12 +25,16 @@ openalex = { mailto = "", timeout = 15, fast_broad_search_top_k = 25, enabled = 
 pubmed = { api_key = "", contact_email = "", fast_broad_search_top_k = 25, enabled = true }
 # arXiv: free, preprints. Polite limit 1 req per 3s.
 arxiv = { timeout = 20, fast_broad_search_top_k = 25, enabled = true }
-# Google Scholar via SerpAPI: paid. Off by default - flip `enabled =
-# true` after setting SERPAPI_API_KEY on Azure App Service.
-scholar = { api_key = "", fast_broad_search_top_k = 20, enabled = false }
-# Tavily web search: paid. Off by default. Catches recent grey-lit +
-# lab pages not yet indexed by academic sources.
-tavily = { api_key = "", fast_broad_search_top_k = 15, enabled = false }
+# Google Scholar via SerpAPI: paid. `enabled = true` here is SAFE
+# even when SERPAPI_API_KEY isn't set — the fetcher short-circuits to
+# [] when client.is_available() is False, so the arm contributes
+# nothing instead of erroring. Flip to false only if you want to
+# stop attempting Scholar even when a key IS present (e.g. cost
+# control).
+scholar = { api_key = "", fast_broad_search_top_k = 20, enabled = true }
+# Tavily web search: same pattern as Scholar. Safe to keep enabled;
+# the fetcher silently no-ops without TAVILY_API_KEY.
+tavily = { api_key = "", fast_broad_search_top_k = 15, enabled = true }
 response_text_top_k = 10
 run_snowball_for_recent = true
 run_snowball_for_central = true
