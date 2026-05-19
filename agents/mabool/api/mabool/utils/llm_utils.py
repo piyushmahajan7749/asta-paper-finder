@@ -1,8 +1,8 @@
+import os
+
 from ai2i.chain import ModelFamily
 from ai2i.config import config_value
 from pydantic import SecretStr
-
-import os
 
 from mabool.data_model.config import cfg_schema
 

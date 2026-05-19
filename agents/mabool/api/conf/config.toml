@@ -18,6 +18,19 @@ s2_api = { concurrency = 1, timeout = 20, total_papers_limit = 1000, total_citat
 # Set `enabled = false` to disable the OpenAlex arm entirely if it
 # misbehaves.
 openalex = { mailto = "", timeout = 15, fast_broad_search_top_k = 25, enabled = true }
+# PubMed (NCBI eutils): free, biomedical. Without `api_key` you get 3
+# req/s; with it 10 req/s. Set PUBMED_API_KEY + PUBMED_CONTACT_EMAIL
+# env vars on Azure App Service. Strongest individual source for
+# biomedical queries, so we run it with a higher top-k.
+pubmed = { api_key = "", contact_email = "", fast_broad_search_top_k = 25, enabled = true }
+# arXiv: free, preprints. Polite limit 1 req per 3s.
+arxiv = { timeout = 20, fast_broad_search_top_k = 25, enabled = true }
+# Google Scholar via SerpAPI: paid. Off by default - flip `enabled =
+# true` after setting SERPAPI_API_KEY on Azure App Service.
+scholar = { api_key = "", fast_broad_search_top_k = 20, enabled = false }
+# Tavily web search: paid. Off by default. Catches recent grey-lit +
+# lab pages not yet indexed by academic sources.
+tavily = { api_key = "", fast_broad_search_top_k = 15, enabled = false }
 response_text_top_k = 10
 run_snowball_for_recent = true
 run_snowball_for_central = true

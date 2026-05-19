@@ -120,6 +120,50 @@ async def _run_initial_retrieval(
             )
         ]
 
+    # PubMed + arXiv + Scholar + Tavily arms (2026-05-19). Each is
+    # config-gated so deployments can selectively enable. Keyless arms
+    # (PubMed, arXiv) default to enabled; paid arms (Scholar, Tavily)
+    # default to disabled until the operator wires up the relevant
+    # API key. The fetchers themselves also no-op when client.is_
+    # available() is False, so missing keys produce empty results
+    # rather than errors.
+    if config_value(cfg_schema.pubmed.enabled, default=True):
+        retrieval_futures += [
+            DC.from_pubmed_search(
+                query=content_query,
+                limit=config_value(cfg_schema.pubmed.fast_broad_search_top_k, default=25),
+                search_iteration=1,
+                time_range=time_range,
+            )
+        ]
+    if config_value(cfg_schema.arxiv.enabled, default=True):
+        retrieval_futures += [
+            DC.from_arxiv_search(
+                query=content_query,
+                limit=config_value(cfg_schema.arxiv.fast_broad_search_top_k, default=25),
+                search_iteration=1,
+                time_range=time_range,
+            )
+        ]
+    if config_value(cfg_schema.scholar.enabled, default=False):
+        retrieval_futures += [
+            DC.from_scholar_search(
+                query=content_query,
+                limit=config_value(cfg_schema.scholar.fast_broad_search_top_k, default=20),
+                search_iteration=1,
+                time_range=time_range,
+            )
+        ]
+    if config_value(cfg_schema.tavily.enabled, default=False):
+        retrieval_futures += [
+            DC.from_tavily_search(
+                query=content_query,
+                limit=config_value(cfg_schema.tavily.fast_broad_search_top_k, default=15),
+                search_iteration=1,
+                time_range=time_range,
+            )
+        ]
+
     doc_collections_or_errors = await custom_gather(*retrieval_futures, return_exceptions=True)
     for dc_or_e in doc_collections_or_errors:
         if isinstance(dc_or_e, Exception):
@@ -127,8 +171,8 @@ async def _run_initial_retrieval(
 
     doc_collection = DC.merge(dc for dc in doc_collections_or_errors if not isinstance(dc, BaseException))
     if not doc_collection:
-        logger.error("No documents retrieved from dense, s2, and OpenAlex search")
-        raise Exception("No documents retrieved from dense, s2, and OpenAlex search")
+        logger.error("No documents retrieved across all configured retrieval arms")
+        raise Exception("No documents retrieved across all configured retrieval arms")
 
     doc_collection += await run_snippet_snowball(
         content_query,

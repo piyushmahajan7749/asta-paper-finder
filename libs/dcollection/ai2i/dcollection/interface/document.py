@@ -324,6 +324,23 @@ class OriginQuery(BaseModel):
         # arms are degraded or for queries where OpenAlex's broader
         # cross-disciplinary coverage helps.
         "openalex_search",
+        # PubMed (NCBI eutils): biomedical primary research. Free,
+        # keyless, ~10 req/s with NCBI_API_KEY else 3/s. Best
+        # individual source for biomedical queries.
+        "pubmed_search",
+        # arXiv Atom API: preprints + open-access papers. Free,
+        # polite limit 1 req per 3s. Strong on ML, quant-bio,
+        # physics, math.
+        "arxiv_search",
+        # Google Scholar via SerpAPI. Broad coverage incl. grey
+        # literature. Paid (needs SERPAPI_API_KEY), disabled by
+        # default.
+        "scholar_search",
+        # Tavily web search. Catches non-paper content (blogs,
+        # whitepapers, news) and very recent preprints not yet
+        # indexed elsewhere. Paid (needs TAVILY_API_KEY), disabled
+        # by default.
+        "tavily_search",
     ]
     provider: str | None = None
     dataset: str | None = None

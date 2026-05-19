@@ -220,6 +220,64 @@ class OpenAlexApi:
     enabled: ConfigValuePlaceholder[bool] = ConfigValuePlaceholder(["openalex", "enabled"])
 
 
+# ────────────────────────────────────────────────────────────────────────
+# Additional retrieval arms (2026-05-19). All gated by `enabled` flags
+# so deployments without the relevant credentials get a clean no-op.
+# Each arm has its own `fast_broad_search_top_k` so we can tune the
+# per-source page size independently — high-relevance arms (PubMed)
+# can pull more candidates, lower-precision arms (Tavily web) less.
+# ────────────────────────────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class PubMedApi:
+    # NCBI API key (optional). Without it the base rate-limit is 3
+    # req/s; with it 10 req/s. Register at
+    # https://www.ncbi.nlm.nih.gov/account/ → "Create an API Key".
+    api_key: ConfigValuePlaceholder[str | None] = ConfigValuePlaceholder(["pubmed", "api_key"])
+    # Contact email NCBI requires on every eutils call. Used to reach
+    # operators when scripts misbehave.
+    contact_email: ConfigValuePlaceholder[str | None] = ConfigValuePlaceholder(
+        ["pubmed", "contact_email"]
+    )
+    fast_broad_search_top_k: ConfigValuePlaceholder[int] = ConfigValuePlaceholder(
+        ["pubmed", "fast_broad_search_top_k"]
+    )
+    enabled: ConfigValuePlaceholder[bool] = ConfigValuePlaceholder(["pubmed", "enabled"])
+
+
+@dataclass(frozen=True)
+class ArxivApi:
+    timeout: ConfigValuePlaceholder[int] = ConfigValuePlaceholder(["arxiv", "timeout"])
+    fast_broad_search_top_k: ConfigValuePlaceholder[int] = ConfigValuePlaceholder(
+        ["arxiv", "fast_broad_search_top_k"]
+    )
+    enabled: ConfigValuePlaceholder[bool] = ConfigValuePlaceholder(["arxiv", "enabled"])
+
+
+@dataclass(frozen=True)
+class ScholarApi:
+    # SerpAPI key (https://serpapi.com/). Paid - deployments without
+    # a key keep `enabled=true` cheaply because the fetcher short-
+    # circuits to [] when `client.is_available()` is False.
+    api_key: ConfigValuePlaceholder[str | None] = ConfigValuePlaceholder(["scholar", "api_key"])
+    fast_broad_search_top_k: ConfigValuePlaceholder[int] = ConfigValuePlaceholder(
+        ["scholar", "fast_broad_search_top_k"]
+    )
+    enabled: ConfigValuePlaceholder[bool] = ConfigValuePlaceholder(["scholar", "enabled"])
+
+
+@dataclass(frozen=True)
+class TavilyApi:
+    # Tavily API key (https://tavily.com/). Same short-circuit pattern
+    # as Scholar - missing key → empty results, no error.
+    api_key: ConfigValuePlaceholder[str | None] = ConfigValuePlaceholder(["tavily", "api_key"])
+    fast_broad_search_top_k: ConfigValuePlaceholder[int] = ConfigValuePlaceholder(
+        ["tavily", "fast_broad_search_top_k"]
+    )
+    enabled: ConfigValuePlaceholder[bool] = ConfigValuePlaceholder(["tavily", "enabled"])
+
+
 @dataclass(frozen=True)
 class SnowballAgent:
     forward_top_k: ConfigValuePlaceholder[int] = ConfigValuePlaceholder(["snowball_agent", "forward_top_k"])
@@ -247,6 +305,10 @@ class AppConfigSchema:
     snowball_agent: SnowballAgent = SnowballAgent()
     s2_api: S2Api = S2Api()
     openalex: OpenAlexApi = OpenAlexApi()
+    pubmed: PubMedApi = PubMedApi()
+    arxiv: ArxivApi = ArxivApi()
+    scholar: ScholarApi = ScholarApi()
+    tavily: TavilyApi = TavilyApi()
     cohere: Cohere = Cohere()
     cache: Cache = Cache()
     di: Di = Di()

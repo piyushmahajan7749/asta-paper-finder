@@ -10,12 +10,20 @@ from .computed_field import (  # noqa: F401
     Typed,
 )
 from .document import PaperFinderDocument  # noqa: F401
+from .external_api.arxiv import AsyncArxivClient  # noqa: F401
 from .external_api.openalex import (  # noqa: F401
     AsyncOpenAlexClient,
     reconstruct_abstract_from_inverted_index,
 )
+from .external_api.pubmed import AsyncPubMedClient  # noqa: F401
 from .external_api.s2.author import s2_get_authors_by_name  # noqa: F401
+from .external_api.scholar import AsyncScholarClient  # noqa: F401
+from .external_api.tavily import AsyncTavilyClient  # noqa: F401
 from .factory import DocumentCollectionFactory  # noqa: F401
+from .fetchers.arxiv import (  # noqa: F401
+    ARXIV_CORPUS_ID_PREFIX,
+    fetch_from_arxiv_search,
+)
 from .fetchers.dense import (  # noqa: F401
     DenseDataset,
     fetch_from_vespa_dense_retrieval,
@@ -24,12 +32,24 @@ from .fetchers.openalex import (  # noqa: F401
     OPENALEX_CORPUS_ID_PREFIX,
     fetch_from_openalex_search,
 )
+from .fetchers.pubmed import (  # noqa: F401
+    PUBMED_CORPUS_ID_PREFIX,
+    fetch_from_pubmed_search,
+)
 from .fetchers.s2 import (  # noqa: F401
     get_by_title_origin_query,
     s2_by_author,
     s2_fetch_citing_papers,
     s2_paper_search,
     s2_papers_by_title,
+)
+from .fetchers.scholar import (  # noqa: F401
+    SCHOLAR_CORPUS_ID_PREFIX,
+    fetch_from_scholar_search,
+)
+from .fetchers.tavily import (  # noqa: F401
+    TAVILY_CORPUS_ID_PREFIX,
+    fetch_from_tavily_search,
 )
 from .interface.collection import (  # noqa: F401  # noqa: F401
     BASIC_FIELDS,

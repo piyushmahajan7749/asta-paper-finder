@@ -128,6 +128,75 @@ class DC:
             fields_of_study=fields_of_study,
         )
 
+    # Same shape as `from_openalex_search` for the 4 non-S2 arms. Each
+    # one short-circuits to an empty collection when its API key /
+    # context client is unavailable, so callers don't need to gate
+    # the call.
+
+    @staticmethod
+    @DI.managed
+    async def from_pubmed_search(
+        query: str,
+        limit: int,
+        search_iteration: int = 1,
+        time_range: ExtractedYearlyTimeRange | None = None,
+        dcf: DocumentCollectionFactory = DI.requires(dc_deps.round_doc_collection_factory),
+    ) -> DocumentCollection:
+        return await dcf.from_pubmed_search(
+            query=query,
+            limit=limit,
+            search_iteration=search_iteration,
+            time_range=time_range,
+        )
+
+    @staticmethod
+    @DI.managed
+    async def from_arxiv_search(
+        query: str,
+        limit: int,
+        search_iteration: int = 1,
+        time_range: ExtractedYearlyTimeRange | None = None,
+        dcf: DocumentCollectionFactory = DI.requires(dc_deps.round_doc_collection_factory),
+    ) -> DocumentCollection:
+        return await dcf.from_arxiv_search(
+            query=query,
+            limit=limit,
+            search_iteration=search_iteration,
+            time_range=time_range,
+        )
+
+    @staticmethod
+    @DI.managed
+    async def from_scholar_search(
+        query: str,
+        limit: int,
+        search_iteration: int = 1,
+        time_range: ExtractedYearlyTimeRange | None = None,
+        dcf: DocumentCollectionFactory = DI.requires(dc_deps.round_doc_collection_factory),
+    ) -> DocumentCollection:
+        return await dcf.from_scholar_search(
+            query=query,
+            limit=limit,
+            search_iteration=search_iteration,
+            time_range=time_range,
+        )
+
+    @staticmethod
+    @DI.managed
+    async def from_tavily_search(
+        query: str,
+        limit: int,
+        search_iteration: int = 1,
+        time_range: ExtractedYearlyTimeRange | None = None,
+        dcf: DocumentCollectionFactory = DI.requires(dc_deps.round_doc_collection_factory),
+    ) -> DocumentCollection:
+        return await dcf.from_tavily_search(
+            query=query,
+            limit=limit,
+            search_iteration=search_iteration,
+            time_range=time_range,
+        )
+
     @staticmethod
     @DI.managed
     async def from_dense_retrieval(

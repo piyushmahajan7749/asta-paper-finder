@@ -7,8 +7,12 @@ from pydantic import BaseModel, ConfigDict, Field
 from pydantic.fields import FieldInfo
 from semanticscholar import AsyncSemanticScholar
 
+from ai2i.dcollection.external_api.arxiv import AsyncArxivClient
 from ai2i.dcollection.external_api.dense.vespa import VespaRetriever
 from ai2i.dcollection.external_api.openalex import AsyncOpenAlexClient
+from ai2i.dcollection.external_api.pubmed import AsyncPubMedClient
+from ai2i.dcollection.external_api.scholar import AsyncScholarClient
+from ai2i.dcollection.external_api.tavily import AsyncTavilyClient
 from ai2i.dcollection.interface.document import DocumentFieldName
 
 type EntityId = str
@@ -173,4 +177,12 @@ class DocumentCollectionContext(BaseModel):
     # back to None when no mailto config is present so existing
     # deployments that haven't enabled OpenAlex keep working unchanged.
     openalex_client: AsyncOpenAlexClient | None = Field(default=None)
+    # New external arms (2026-05-19). All optional + default None so
+    # deployments that haven't configured them get a graceful no-op
+    # at the fetcher layer (each fetcher checks `is_available()` or
+    # `client is None` before issuing requests).
+    pubmed_client: AsyncPubMedClient | None = Field(default=None)
+    arxiv_client: AsyncArxivClient | None = Field(default=None)
+    scholar_client: AsyncScholarClient | None = Field(default=None)
+    tavily_client: AsyncTavilyClient | None = Field(default=None)
     force_deterministic: bool = Field(default=False)

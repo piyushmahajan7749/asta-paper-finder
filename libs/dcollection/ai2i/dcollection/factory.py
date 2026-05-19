@@ -10,16 +10,24 @@ from ai2i.dcollection import PaperFinderDocument
 from ai2i.dcollection.caching.cache import SubsetCache
 from ai2i.dcollection.collection import PaperFinderDocumentCollection
 from ai2i.dcollection.data_access_context import DocumentCollectionContext, SubsetCacheInterface
+from ai2i.dcollection.external_api.arxiv import AsyncArxivClient
 from ai2i.dcollection.external_api.dense.vespa import VespaRetriever
 from ai2i.dcollection.external_api.openalex import AsyncOpenAlexClient
+from ai2i.dcollection.external_api.pubmed import AsyncPubMedClient
+from ai2i.dcollection.external_api.scholar import AsyncScholarClient
+from ai2i.dcollection.external_api.tavily import AsyncTavilyClient
+from ai2i.dcollection.fetchers.arxiv import fetch_from_arxiv_search
 from ai2i.dcollection.fetchers.dense import DenseDataset, fetch_from_vespa_dense_retrieval
 from ai2i.dcollection.fetchers.openalex import fetch_from_openalex_search
+from ai2i.dcollection.fetchers.pubmed import fetch_from_pubmed_search
 from ai2i.dcollection.fetchers.s2 import (
     s2_by_author,
     s2_fetch_citing_papers,
     s2_paper_search,
     s2_papers_by_title,
 )
+from ai2i.dcollection.fetchers.scholar import fetch_from_scholar_search
+from ai2i.dcollection.fetchers.tavily import fetch_from_tavily_search
 from ai2i.dcollection.interface.collection import (
     BASIC_FIELDS,
     S2_FIELDS,
@@ -49,6 +57,15 @@ class DocumentCollectionFactory(BaseDocumentCollectionFactory):
         force_deterministic: bool = False,
         openalex_mailto: str | None = None,
         openalex_timeout: int = 15,
+        # External-arm configuration (all optional). Each client falls
+        # back to a graceful no-op fetcher when its key/config is
+        # missing - deployments that haven't enabled a given arm just
+        # get [] back from that arm's fetcher.
+        pubmed_api_key: str | None = None,
+        pubmed_contact_email: str | None = None,
+        arxiv_timeout: int = 20,
+        scholar_api_key: str | None = None,
+        tavily_api_key: str | None = None,
     ):
         super().__init__()
         # Fail loud when the S2 API key is missing or blank. The
@@ -91,6 +108,20 @@ class DocumentCollectionFactory(BaseDocumentCollectionFactory):
             mailto=openalex_mailto,
             timeout=openalex_timeout,
         )
+        # PubMed + arXiv: always constructed (free, keyless). API key
+        # for PubMed is OPTIONAL - just raises rate limit from 3/s
+        # to 10/s when present. arXiv has no key concept.
+        pubmed_client = AsyncPubMedClient(
+            api_key=pubmed_api_key,
+            contact_email=pubmed_contact_email,
+        )
+        arxiv_client = AsyncArxivClient(timeout=arxiv_timeout)
+        # Scholar + Tavily: constructed but only "available" when their
+        # respective API keys are set. The fetcher checks
+        # client.is_available() before issuing requests - missing key
+        # just means that arm contributes [] to the fan-out, no errors.
+        scholar_client = AsyncScholarClient(api_key=scholar_api_key)
+        tavily_client = AsyncTavilyClient(api_key=tavily_api_key)
         cache = SubsetCache(
             ttl=cache_ttl,
             is_enabled=cache_is_enabled,
@@ -102,6 +133,10 @@ class DocumentCollectionFactory(BaseDocumentCollectionFactory):
             vespa_client=vespa_client,
             vespa_max_concurrency=vespa_max_concurrency,
             openalex_client=openalex_client,
+            pubmed_client=pubmed_client,
+            arxiv_client=arxiv_client,
+            scholar_client=scholar_client,
+            tavily_client=tavily_client,
             cache=cache,
             force_deterministic=force_deterministic,
         )
@@ -303,5 +338,75 @@ class DocumentCollectionFactory(BaseDocumentCollectionFactory):
             context=self._context,
             time_range=time_range,
             fields_of_study=fields_of_study,
+        )
+        return self.from_docs(documents=documents)
+
+    # ── Non-S2 search arms (PubMed / arXiv / Scholar / Tavily) ──────────
+    # Same shape as `from_openalex_search`: each builds pre-populated
+    # PaperFinderDocuments with a synthetic, source-prefixed corpus_id,
+    # skips the S2-enrichment + cache paths (their corpus_ids don't
+    # round-trip to S2 anyway), and returns a DocumentCollection.
+
+    async def from_pubmed_search(
+        self,
+        query: str,
+        limit: int,
+        search_iteration: int = 1,
+        time_range: ExtractedYearlyTimeRange | None = None,
+    ) -> DocumentCollection:
+        documents = await fetch_from_pubmed_search(
+            queries=[query],
+            search_iteration=search_iteration,
+            top_k=limit,
+            context=self._context,
+            time_range=time_range,
+        )
+        return self.from_docs(documents=documents)
+
+    async def from_arxiv_search(
+        self,
+        query: str,
+        limit: int,
+        search_iteration: int = 1,
+        time_range: ExtractedYearlyTimeRange | None = None,
+    ) -> DocumentCollection:
+        documents = await fetch_from_arxiv_search(
+            queries=[query],
+            search_iteration=search_iteration,
+            top_k=limit,
+            context=self._context,
+            time_range=time_range,
+        )
+        return self.from_docs(documents=documents)
+
+    async def from_scholar_search(
+        self,
+        query: str,
+        limit: int,
+        search_iteration: int = 1,
+        time_range: ExtractedYearlyTimeRange | None = None,
+    ) -> DocumentCollection:
+        documents = await fetch_from_scholar_search(
+            queries=[query],
+            search_iteration=search_iteration,
+            top_k=limit,
+            context=self._context,
+            time_range=time_range,
+        )
+        return self.from_docs(documents=documents)
+
+    async def from_tavily_search(
+        self,
+        query: str,
+        limit: int,
+        search_iteration: int = 1,
+        time_range: ExtractedYearlyTimeRange | None = None,
+    ) -> DocumentCollection:
+        documents = await fetch_from_tavily_search(
+            queries=[query],
+            search_iteration=search_iteration,
+            top_k=limit,
+            context=self._context,
+            time_range=time_range,
         )
         return self.from_docs(documents=documents)
